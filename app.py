@@ -7,7 +7,7 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 @app.route('/')
 def home():
     if os.path.exists('main.html'):
-        return send_from_directory('.', 'main.html')
+        return send_from_directory('.', 'index.html')
     return "main.html을 찾을 수 없습니다.", 404
 
 # 2. games 폴더 안의 모든 html 파일 처리 (/games/2048, /games/snake.html 등)
