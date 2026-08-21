@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>메모리 매치 — COIN ARCADE</title>
+<link rel="stylesheet" href="../style.css">
+<style>
+  .memgrid{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:10px;
+    width:min(400px, 88vw);
+    margin:0 auto;
+  }
+  .memcard{
+    aspect-ratio:1/1;
+    border-radius:10px;
+    background:var(--surface-hi);
+    border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    font-size:clamp(20px,6vw,32px);
+    cursor:pointer;
+    user-select:none;
+    transition:transform .15s ease;
+  }
+  .memcard.flipped, .memcard.matched{
+    background:#2b2450;
+    border-color:var(--coin);
+  }
+  .memcard.matched{ opacity:0.55; cursor:default; }
+  .memcard .face{ display:none; }
+  .memcard.flipped .face, .memcard.matched .face{ display:block; }
+  .memcard .back{ display:block; color:var(--text-dim); font-family:'Space Grotesk',sans-serif; font-weight:700; }
+  .memcard.flipped .back, .memcard.matched .back{ display:none; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="../index.html">
+    <div class="logo__mark">EA</div>
+    <div class="logo__text display">Edu<b>ARCADE</b></div>
+  </a>
+</header>
+
+<div class="player-wrap">
+  <div class="player-top">
+    <a class="back" href="../index.html">← 아케이드로 돌아가기</a>
+  </div>
+  <h1 class="display" style="margin:0 0 4px;">메모리 매치</h1>
+  <p class="howto" style="margin-bottom:18px;">카드를 뒤집어 같은 그림 두 장을 짝지어보세요.</p>
+
+  <div class="stage">
+    <div class="stage__hud">
+      <div class="stat">시도<b id="tries">0</b></div>
+      <div class="stat">짝<b id="matches">0 / 8</b></div>
+      <button class="btn btn--ghost" id="restartBtn" style="padding:8px 16px;font-size:12px;">다시 시작</button>
+    </div>
+    <div class="overlay-msg">
+      <div class="memgrid" id="grid"></div>
+      <div class="msg" id="msg">
+        <h3>완성! 🎉</h3>
+        <p id="finalTries" style="margin:0;color:#a79fd1;">시도 횟수: 0</p>
+        <button class="btn btn--coin" id="restartBtn2">다시 하기</button>
+      </div>
+    </div>
+    <p class="howto"><b>조작법</b> — 카드를 클릭해서 두 장씩 뒤집어요.</p>
+  </div>
+</div>
+
+<script>
+const gridEl = document.getElementById('grid');
+const triesEl = document.getElementById('tries');
+const matchesEl = document.getElementById('matches');
+const msgEl = document.getElementById('msg');
+const finalTriesEl = document.getElementById('finalTries');
+
+const emojis = ['🚀','🍒','🎮','🎲','🐙','🍕','⭐','🎧'];
+
+let cards, flipped, matchedCount, tries, lock;
+
+function reset(){
+  const deck = [...emojis, ...emojis]
+    .map(e=>({e, matched:false}))
+    .sort(()=>Math.random()-0.5);
+  cards = deck;
+  flipped = [];
+  matchedCount = 0;
+  tries = 0;
+  lock = false;
+  triesEl.textContent = tries;
+  matchesEl.textContent = matchedCount + ' / 8';
+  msgEl.classList.remove('show');
+  render();
+}
+
+function render(){
+  gridEl.innerHTML = '';
+  cards.forEach((card, i)=>{
+    const div = document.createElement('div');
+    div.className = 'memcard' + (card.matched ? ' matched' : (flipped.includes(i) ? ' flipped' : ''));
+    div.innerHTML = `<span class="face">${card.e}</span><span class="back">?</span>`;
+    div.addEventListener('click', ()=> flip(i));
+    gridEl.appendChild(div);
+  });
+}
+
+function flip(i){
+  if(lock || flipped.includes(i) || cards[i].matched) return;
+  flipped.push(i);
+  render();
+  if(flipped.length === 2){
+    lock = true;
+    tries += 1;
+    triesEl.textContent = tries;
+    const [a,b] = flipped;
+    if(cards[a].e === cards[b].e){
+      cards[a].matched = true;
+      cards[b].matched = true;
+      matchedCount += 1;
+      matchesEl.textContent = matchedCount + ' / 8';
+      flipped = [];
+      lock = false;
+      render();
+      if(matchedCount === 8){
+        finalTriesEl.textContent = '시도 횟수: ' + tries;
+        msgEl.classList.add('show');
+      }
+    } else {
+      setTimeout(()=>{
+        flipped = [];
+        lock = false;
+        render();
+      }, 700);
+    }
+  }
+}
+
+document.getElementById('restartBtn').addEventListener('click', reset);
+document.getElementById('restartBtn2').addEventListener('click', reset);
+
+reset();
+</script>
+
+</body>
+</html>

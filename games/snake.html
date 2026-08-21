@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스네이크 — Edu ARCADE</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="../index.html">
+    <div class="logo__mark">EA</div>
+    <div class="logo__text display">Edu<b>ARCADE</b></div>
+  </a>
+</header>
+
+<div class="player-wrap">
+  <div class="player-top">
+    <a class="back" href="../index.html">← 아케이드로 돌아가기</a>
+  </div>
+  <h1 class="display" style="margin:0 0 4px;">스네이크</h1>
+  <p class="howto" style="margin-bottom:18px;">먹이를 먹을수록 몸이 길어져요. 벽이나 자기 몸에 부딪히면 게임 오버!</p>
+
+  <div class="stage">
+    <div class="stage__hud">
+      <div class="stat">점수<b id="score">0</b></div>
+      <div class="stat">최고 점수<b id="best">0</b></div>
+      <button class="btn btn--ghost" id="restartBtn" style="padding:8px 16px;font-size:12px;">다시 시작</button>
+    </div>
+    <div class="overlay-msg">
+      <canvas id="game" width="400" height="400"></canvas>
+      <div class="msg" id="msg">
+        <h3>게임 오버</h3>
+        <p id="finalScore" style="margin:0;color:#a79fd1;">점수: 0</p>
+        <button class="btn btn--coin" id="restartBtn2">다시 하기</button>
+      </div>
+    </div>
+    <p class="howto"><b>조작법</b> — 방향키 또는 W/A/S/D. 모바일은 화면을 스와이프하세요.</p>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const cell = 20;
+const cols = canvas.width / cell;
+const rows = canvas.height / cell;
+
+let snake, dir, nextDir, food, score, best, running, tickMs, timer;
+
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const msgEl = document.getElementById('msg');
+const finalScoreEl = document.getElementById('finalScore');
+
+best = Number(localStorage.getItem('coinArcadeSnakeBest') || 0);
+bestEl.textContent = best;
+
+function reset(){
+  snake = [{x:8,y:10},{x:7,y:10},{x:6,y:10}];
+  dir = {x:1,y:0};
+  nextDir = {x:1,y:0};
+  score = 0;
+  tickMs = 120;
+  running = true;
+  scoreEl.textContent = score;
+  msgEl.classList.remove('show');
+  placeFood();
+  clearInterval(timer);
+  timer = setInterval(tick, tickMs);
+}
+
+function placeFood(){
+  let ok = false;
+  while(!ok){
+    food = { x: Math.floor(Math.random()*cols), y: Math.floor(Math.random()*rows) };
+    ok = !snake.some(s=>s.x===food.x && s.y===food.y);
+  }
+}
+
+function tick(){
+  if(!running) return;
+  dir = nextDir;
+  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+  if(head.x<0 || head.y<0 || head.x>=cols || head.y>=rows || snake.some(s=>s.x===head.x && s.y===head.y)){
+    gameOver();
+    return;
+  }
+
+  snake.unshift(head);
+  if(head.x===food.x && head.y===food.y){
+    score += 10;
+    scoreEl.textContent = score;
+    placeFood();
+    if(score % 50 === 0){
+      tickMs = Math.max(60, tickMs - 8);
+      clearInterval(timer);
+      timer = setInterval(tick, tickMs);
+    }
+  } else {
+    snake.pop();
+  }
+  draw();
+}
+
+function gameOver(){
+  running = false;
+  clearInterval(timer);
+  if(score > best){
+    best = score;
+    localStorage.setItem('coinArcadeSnakeBest', best);
+    bestEl.textContent = best;
+  }
+  finalScoreEl.textContent = '점수: ' + score;
+  msgEl.classList.add('show');
+}
+
+function draw(){
+  ctx.fillStyle = '#0c0a17';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle = '#ffcb3d';
+  ctx.beginPath();
+  ctx.arc(food.x*cell + cell/2, food.y*cell + cell/2, cell/2 - 3, 0, Math.PI*2);
+  ctx.fill();
+
+  snake.forEach((s,i)=>{
+    ctx.fillStyle = i===0 ? '#ff4d7d' : '#35e0c8';
+    ctx.beginPath();
+    ctx.roundRect(s.x*cell+1, s.y*cell+1, cell-2, cell-2, 5);
+    ctx.fill();
+  });
+}
+
+const keyMap = {
+  ArrowUp:{x:0,y:-1}, ArrowDown:{x:0,y:1}, ArrowLeft:{x:-1,y:0}, ArrowRight:{x:1,y:0},
+  w:{x:0,y:-1}, s:{x:0,y:1}, a:{x:-1,y:0}, d:{x:1,y:0}
+};
+window.addEventListener('keydown', e=>{
+  const nd = keyMap[e.key];
+  if(!nd) return;
+  e.preventDefault();
+  if(nd.x === -dir.x && nd.y === -dir.y) return; // no 180 turn
+  nextDir = nd;
+});
+
+// swipe support
+let touchStart = null;
+canvas.addEventListener('touchstart', e=>{ touchStart = e.touches[0]; }, {passive:true});
+canvas.addEventListener('touchend', e=>{
+  if(!touchStart) return;
+  const dx = e.changedTouches[0].clientX - touchStart.clientX;
+  const dy = e.changedTouches[0].clientY - touchStart.clientY;
+  if(Math.abs(dx) > Math.abs(dy)){
+    nextDir = dx>0 ? {x:1,y:0} : {x:-1,y:0};
+  } else {
+    nextDir = dy>0 ? {x:0,y:1} : {x:0,y:-1};
+  }
+  touchStart = null;
+});
+
+document.getElementById('restartBtn').addEventListener('click', reset);
+document.getElementById('restartBtn2').addEventListener('click', reset);
+
+reset();
+draw();
+</script>
+
+</body>
+</html>
