@@ -6,7 +6,7 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 # 1. 메인 페이지 (/) -> main.html
 @app.route('/')
 def home():
-    if os.path.exists('main.html'):
+    if os.path.exists('index.html'):
         return send_from_directory('.', 'index.html')
     return "main.html을 찾을 수 없습니다.", 404
 
