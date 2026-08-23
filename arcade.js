@@ -14,7 +14,8 @@ const ARCADE_REQUIREMENTS = {
   snake:      10,
   '2048':     5,
   'neon-stack': 15,
-  'bottle-flp' : 20
+  'bottle-flip' : 20,
+  'rhythm_game' : 30
 };
 
 let _arcadeScore = 0;
