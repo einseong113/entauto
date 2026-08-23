@@ -13,7 +13,8 @@ const ARCADE_REQUIREMENTS = {
   memory:     0,
   snake:      10,
   '2048':     5,
-  'neon-stack': 15
+  'neon-stack': 15,
+  'bottle-flp' : 20
 };
 
 let _arcadeScore = 0;
