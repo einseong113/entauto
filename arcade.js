@@ -9,12 +9,11 @@
 
 const SESSION_KEY = 'eduArcadeSessionScore';
 
-// 게임별 필요 점수 (필요하면 숫자만 수정하세요)
 const ARCADE_REQUIREMENTS = {
-  memory:       0,
-  snake:        100,
-  '2048':       300,
-  'neon-stack': 600
+  memory:     0,
+  snake:      10,
+  '2048':     5,
+  'neon-stack': 15
 };
 
 let _arcadeScore = 0;
