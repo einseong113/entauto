@@ -5,7 +5,7 @@
 
 // 게임별 필요 점수 (필요하면 숫자만 수정하세요)
 const ARCADE_REQUIREMENTS = {
-  memory:     1,
+  memory:     0,
   snake:      10,
   '2048':     5,
   'neon-stack': 15
