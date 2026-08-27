@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>무한의 계단</title>
+<style>
+  :root{
+    --sky-top:#1a2b52;
+    --sky-bot:#3a5a8a;
+    --gauge-bg:#2a1f14;
+    --gauge-fill:#4fd15a;
+    --gauge-fill-warn:#e8c93e;
+    --gauge-fill-danger:#e0523a;
+    --paper:#f2e9c9;
+    --btn-right:#3a6b3a;
+    --btn-left:#6b3a3a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    position:fixed; inset:0; margin:0; padding:0; width:100%; height:100%;
+    background:#000; overflow:hidden; touch-action:none;
+    user-select:none; -webkit-user-select:none;
+    font-family:"Courier New", "D2Coding", monospace;
+  }
+  #app{ position:absolute; inset:0; }
+  #view{ position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; image-rendering:crisp-edges; }
+
+  #hud{
+    position:absolute; top:0; left:0; right:0; z-index:20;
+    padding:calc(10px + env(safe-area-inset-top)) 14px 0;
+    pointer-events:none;
+  }
+  #floorNum{
+    text-align:center; color:var(--paper); font-weight:700;
+    font-size:38px; letter-spacing:.05em;
+    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  }
+  #floorLabel{
+    text-align:center; color:var(--paper); font-size:11px; letter-spacing:.3em;
+    margin-top:-4px; opacity:.85;
+    text-shadow: 1px 1px 0 #000;
+  }
+  #gaugeWrap{
+    margin:10px auto 0; width:min(320px,86%);
+    height:16px; background:var(--gauge-bg);
+    border:3px solid #000; box-shadow:0 0 0 1px #6b5a3a;
+    position:relative;
+  }
+  #gaugeFill{
+    position:absolute; left:0; top:0; bottom:0; width:100%;
+    background:var(--gauge-fill);
+    image-rendering:pixelated;
+  }
+  #coinRow{
+    text-align:center; margin-top:6px; color:#f4d75a; font-size:13px;
+    text-shadow:1px 1px 0 #000; letter-spacing:.05em;
+  }
+
+  #buttons{
+    position:absolute; left:0; right:0; bottom:0; z-index:20;
+    display:flex; height:26%;
+  }
+  #btnLeft,#btnRight{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:var(--paper); font-size:14px; letter-spacing:.15em; font-weight:700;
+    border-top:3px solid #000;
+    text-shadow:1px 1px 0 #000;
+    transition:filter .08s, transform .08s;
+  }
+  #btnLeft{ background:var(--btn-left); border-right:3px solid #000; }
+  #btnRight{ background:var(--btn-right); }
+  #btnLeft .ic, #btnRight .ic{ font-size:26px; margin-bottom:4px; }
+  #btnLeft.press, #btnRight.press{ filter:brightness(1.5); transform:scale(0.97); }
+
+  .overlay{
+    position:absolute; inset:0; z-index:40;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:24px;
+    background:rgba(10,10,20,0.88);
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .overlay.show{ opacity:1; pointer-events:auto; }
+  .overlay h1{
+    margin:0 0 6px; color:var(--paper); font-size:clamp(26px,7vw,38px);
+    letter-spacing:.1em; text-shadow:3px 3px 0 #000;
+  }
+  .overlay .sub{ color:#cbb98a; font-size:12px; margin-bottom:22px; letter-spacing:.1em; }
+  .overlay .big{ color:#f4d75a; font-size:46px; font-weight:700; text-shadow:2px 2px 0 #000; }
+  .overlay .best{ color:#cbb98a; font-size:12px; margin:4px 0 22px; letter-spacing:.1em; }
+  .overlay .howto{ color:#cbb98a; font-size:12px; line-height:1.9; max-width:260px; margin-bottom:22px; }
+  .overlay .howto b{ color:var(--paper); }
+  .overlay .go{
+    background:#f4d75a; color:#1a1200; font-weight:700; letter-spacing:.1em;
+    padding:12px 26px; font-size:13px; box-shadow:0 4px 0 #7a5f1a;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="view"></canvas>
+
+  <div id="hud">
+    <div id="floorNum">0</div>
+    <div id="floorLabel">층</div>
+    <div id="gaugeWrap"><div id="gaugeFill"></div></div>
+    <div id="coinRow">🪙 <span id="coinNum">0</span></div>
+  </div>
+
+  <div id="buttons">
+    <div id="btnLeft"><div class="ic">↺</div>방향 전환</div>
+    <div id="btnRight"><div class="ic">↑</div>오르기</div>
+  </div>
+
+  <div class="overlay show" id="startOverlay">
+    <h1>무한의 계단</h1>
+    <div class="sub">INFINITE STAIRS</div>
+    <div class="howto">
+      오른쪽 <b>[오르기]</b>를 눌러 계단을 올라가고,<br>
+      계단이 꺾이는 지점에서만<br>
+      왼쪽 <b>[방향 전환]</b>을 눌러주세요.<br><br>
+      버튼을 잘못 누르면 떨어집니다.<br>
+      올라갈수록 게이지가 더 빨리 닳아요!
+    </div>
+    <div class="go">탭하여 시작</div>
+  </div>
+
+  <div class="overlay" id="overOverlay">
+    <h1>추락</h1>
+    <div class="big" id="finalFloor">0</div>
+    <div class="best" id="bestLine">최고 기록 0층</div>
+    <div class="go">탭하여 다시 도전</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const view = document.getElementById('view');
+  const vctx = view.getContext('2d');
+  const floorNum = document.getElementById('floorNum');
+  const gaugeFill = document.getElementById('gaugeFill');
+  const coinNum = document.getElementById('coinNum');
+  const startOverlay = document.getElementById('startOverlay');
+  const overOverlay = document.getElementById('overOverlay');
+  const finalFloorEl = document.getElementById('finalFloor');
+  const bestLineEl = document.getElementById('bestLine');
+  const btnLeft = document.getElementById('btnLeft');
+  const btnRight = document.getElementById('btnRight');
+
+  let W,H;
+  function resize(){
+    W = window.innerWidth; H = window.innerHeight;
+    view.width = W; view.height = H;
+    view.style.width = W+'px'; view.style.height = H+'px';
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---- 저해상도 내부 캔버스로 8비트 도트 느낌 렌더링 ----
+  const IW = 176;
+  let IH = Math.round(IW * (window.innerHeight/window.innerWidth));
+  const ic = document.createElement('canvas');
+  const ictx = ic.getContext('2d');
+  function iresize(){
+    IH = Math.round(IW * (H/W));
+    ic.width = IW; ic.height = IH;
+  }
+  iresize();
+  window.addEventListener('resize', iresize);
+
+  const STORE_KEY = 'infinite-stairs-classic-best';
+  let best = 0;
+  (async function loadBest(){
+    try{
+      const r = await window.storage.get(STORE_KEY, false);
+      if(r && r.value) best = parseInt(r.value,10)||0;
+    }catch(e){}
+    bestLineEl.textContent = '최고 기록 ' + best + '층';
+  })();
+  async function saveBest(v){ try{ await window.storage.set(STORE_KEY, String(v), false); }catch(e){} }
+
+  const STEP_W = 15, STEP_H = 9;
+
+  // ---- 계단 경로 생성 ----
+  let steps = [{x:0,y:0,action:null,coin:false}];
+  let genDir = 1, genFlightLen = 4, genPos = 0;
+  function genMore(upTo){
+    while(steps.length <= upTo){
+      const last = steps[steps.length-1];
+      let action, nx, ny;
+      const isTurn = (genPos+1 >= genFlightLen);
+      if(isTurn){
+        action='turn'; nx=last.x; ny=last.y-STEP_H;
+      } else {
+        action='advance'; nx=last.x+genDir*STEP_W; ny=last.y-STEP_H;
+      }
+      const coin = (!isTurn) && Math.random()<0.28;
+      steps.push({x:nx,y:ny,action,coin,coinTaken:false});
+      genPos++;
+      if(isTurn){ genDir*=-1; genFlightLen = 3+Math.floor(Math.random()*4); genPos=0; }
+    }
+  }
+  genMore(24);
+
+  let floor = 0;
+  let gauge = 100;
+  let coins = 0;
+  let state = 'start'; // start | playing | over
+  let renderX = 0, renderY = 0;
+  let shakeT = 0;
+  let lastT = null;
+  let hopFlash = 0;
+
+  function reset(){
+    steps = [{x:0,y:0,action:null,coin:false}];
+    genDir = 1; genFlightLen = 4; genPos = 0;
+    genMore(24);
+    floor = 0; gauge = 100; coins = 0;
+    renderX = 0; renderY = 0;
+    coinNum.textContent = '0';
+    floorNum.textContent = '0';
+    setGaugeUI();
+  }
+  reset();
+
+  function setGaugeUI(){
+    const pct = Math.max(0, Math.min(100, gauge));
+    gaugeFill.style.width = pct+'%';
+    gaugeFill.style.background = pct>50 ? '#4fd15a' : (pct>22 ? '#e8c93e' : '#e0523a');
+  }
+
+  function startGame(){
+    reset();
+    state='playing';
+    startOverlay.classList.remove('show');
+    overOverlay.classList.remove('show');
+  }
+
+  function gameOver(){
+    state='over';
+    shakeT = 0.4;
+    finalFloorEl.textContent = floor + '층';
+    if(floor>best){ best=floor; saveBest(best); }
+    bestLineEl.textContent = '최고 기록 '+best+'층';
+    setTimeout(()=>overOverlay.classList.add('show'), 350);
+  }
+
+  function press(action){
+    if(state!=='playing') return;
+    const target = steps[floor+1];
+    if(target && target.action===action){
+      floor++;
+      gauge = Math.min(100, gauge + 13);
+      if(target.coin && !target.coinTaken){ target.coinTaken=true; coins++; coinNum.textContent=String(coins); }
+      floorNum.textContent = String(floor);
+      setGaugeUI();
+      genMore(floor+24);
+    } else {
+      gameOver();
+    }
+  }
+
+  function flashBtn(el){
+    el.classList.add('press');
+    setTimeout(()=>el.classList.remove('press'), 100);
+  }
+
+  document.getElementById('app').addEventListener('pointerdown', (e)=>{
+    if(state!=='playing'){ startGame(); return; }
+    const x = e.clientX;
+    if(x < W/2){ flashBtn(btnLeft); press('turn'); }
+    else { flashBtn(btnRight); press('advance'); }
+  });
+  window.addEventListener('keydown', (e)=>{
+    if(state!=='playing'){
+      if(e.key==='Enter'||e.key===' ') startGame();
+      return;
+    }
+    if(e.key==='ArrowLeft'||e.key==='a'){ flashBtn(btnLeft); press('turn'); }
+    if(e.key==='ArrowRight'||e.key==='d'||e.key===' '){ flashBtn(btnRight); press('advance'); }
+  });
+
+  function drawPixelText(ctx, text, x, y, size, color){
+    ctx.font = 'bold '+size+'px monospace';
+    ctx.fillStyle='#000';
+    ctx.textAlign='center';
+    ctx.fillText(text, x+1, y+1);
+    ctx.fillStyle=color;
+    ctx.fillText(text, x, y);
+  }
+
+  function frame(t){
+    if(lastT===null) lastT=t;
+    const dt = Math.min((t-lastT)/1000, 0.04);
+    lastT = t;
+
+    if(state==='playing'){
+      const drain = 4.2 + floor*0.045;
+      gauge -= drain*dt;
+      if(gauge<=0){ gauge=0; setGaugeUI(); gameOver(); }
+      else setGaugeUI();
+    }
+    if(shakeT>0) shakeT -= dt;
+
+    const cur = steps[floor];
+    renderX += (cur.x - renderX) * Math.min(1, dt*10);
+    renderY += (cur.y - renderY) * Math.min(1, dt*10);
+
+    // ---- 내부(저해상도) 캔버스에 그리기 ----
+    const g = ictx.createLinearGradient(0,0,0,IH);
+    g.addColorStop(0,'#16233f');
+    g.addColorStop(1,'#3d5f92');
+    ictx.fillStyle = g;
+    ictx.fillRect(0,0,IW,IH);
+
+    // 별
+    ictx.fillStyle = 'rgba(255,255,255,0.5)';
+    for(let i=0;i<14;i++){
+      const sx = (i*37 + 13) % IW;
+      const sy = (i*53) % (IH*0.4);
+      ictx.fillRect(sx, sy, 1, 1);
+    }
+
+    const shakeX = shakeT>0 ? (Math.random()-0.5)*4 : 0;
+    const camX = renderX - shakeX;
+    const camY = renderY;
+    const originX = IW/2;
+    const originY = IH*0.62;
+
+    const lo = Math.max(0, floor-3);
+    const hi = Math.min(steps.length-1, floor+16);
+    for(let i=lo; i<=hi; i++){
+      const s = steps[i];
+      const sx = originX + (s.x - camX);
+      const sy = originY + (s.y - camY);
+      const w = s.action==='turn' ? STEP_W*1.7 : STEP_W*1.15;
+      ictx.fillStyle = '#8a5a2e';
+      ictx.fillRect(sx-w/2, sy, w, STEP_H+3);
+      ictx.fillStyle = '#c98a46';
+      ictx.fillRect(sx-w/2, sy, w, 4);
+      ictx.fillStyle = 'rgba(0,0,0,0.25)';
+      ictx.fillRect(sx-w/2, sy+STEP_H+1, w, 2);
+
+      if(s.coin && !s.coinTaken){
+        ictx.fillStyle = '#f4d75a';
+        ictx.fillRect(sx-2, sy-6, 4,4);
+        ictx.fillStyle = '#a8781a';
+        ictx.fillRect(sx-2, sy-6, 4,1);
+      }
+    }
+
+    // 플레이어
+    const px = originX;
+    const py = originY - 2;
+    const bob = state==='playing' ? Math.sin(t/90)*1.2 : 0;
+    ictx.fillStyle = '#241a12';
+    ictx.fillRect(px-4, py-13+bob, 8, 5); // 머리
+    ictx.fillStyle = '#d94f3d';
+    ictx.fillRect(px-5, py-8+bob, 10, 7); // 몸
+    ictx.fillStyle = '#241a12';
+    ictx.fillRect(px-5, py-1+bob, 4, 4);
+    ictx.fillRect(px+1, py-1+bob, 4, 4);
+
+    // 소실점 위쪽 안개
+    const fog = ictx.createLinearGradient(0,0,0,IH*0.35);
+    fog.addColorStop(0,'rgba(22,35,63,1)');
+    fog.addColorStop(1,'rgba(22,35,63,0)');
+    ictx.fillStyle = fog;
+    ictx.fillRect(0,0,IW,IH*0.35);
+
+    // ---- 실제 화면에 업스케일 ----
+    vctx.imageSmoothingEnabled = false;
+    vctx.clearRect(0,0,W,H);
+    vctx.drawImage(ic, 0,0, IW, IH, 0,0, W, H);
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

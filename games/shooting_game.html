@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>스테이지 총쏘기 게임</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    overscroll-behavior: none;
+  }
+  body {
+    background: #0b0f1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    height: 100dvh;
+    font-family: 'Malgun Gothic', sans-serif;
+    color: #fff;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+  }
+  #gameContainer {
+    position: relative;
+    border: 3px solid #3a4a6b;
+    border-radius: 8px;
+    box-shadow: 0 0 40px rgba(80,140,255,0.3);
+    width: 100%;
+    max-width: 800px;
+    aspect-ratio: 4 / 3;
+    touch-action: none;
+  }
+  canvas {
+    display: block;
+    background: linear-gradient(#0d1526, #1a2338);
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+  #hud {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 18px;
+    text-shadow: 0 0 6px #000;
+    pointer-events: none;
+  }
+  #overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.75);
+    text-align: center;
+  }
+  #overlay h1 {
+    font-size: 40px;
+    margin-bottom: 10px;
+    color: #ffd45c;
+    text-shadow: 0 0 12px rgba(255,212,92,0.6);
+  }
+  #overlay p { font-size: 16px; margin: 6px 0; color: #ccd; }
+  button {
+    margin-top: 18px;
+    padding: 12px 28px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    background: #4d8bff;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  button:hover { background: #6ba0ff; }
+  .hidden { display: none !important; }
+  #overlay { z-index: 20; }
+  #stageBanner { z-index: 15; }
+
+  #touchControls {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    top: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .stick {
+    position: absolute;
+    bottom: 24px;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    border: 2px solid rgba(255,255,255,0.25);
+    pointer-events: auto;
+    touch-action: none;
+  }
+  #moveStick { left: 24px; }
+  #aimStick { right: 24px; }
+  .stick-knob {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.35);
+    pointer-events: none;
+    transition: transform 0.03s linear;
+  }
+  #aimStick .stick-knob { background: rgba(255,120,120,0.4); }
+  #stageBanner {
+    position: absolute;
+    top: 40%;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 46px;
+    font-weight: bold;
+    color: #ffd45c;
+    text-shadow: 0 0 20px rgba(255,212,92,0.7);
+    pointer-events: none;
+    animation: fadeBanner 1.6s ease forwards;
+  }
+  @keyframes fadeBanner {
+    0% { opacity: 0; transform: scale(0.8); }
+    20% { opacity: 1; transform: scale(1.05); }
+    35% { transform: scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="game" width="800" height="600"></canvas>
+  <div id="hud">
+    <div>❤️ <span id="hpText">100</span></div>
+    <div>🎯 STAGE <span id="stageText">1</span></div>
+    <div>⭐ SCORE <span id="scoreText">0</span></div>
+  </div>
+  <div id="touchControls">
+    <div class="stick" id="moveStick"><div class="stick-knob"></div></div>
+    <div class="stick" id="aimStick"><div class="stick-knob"></div></div>
+  </div>
+  <div id="overlay">
+    <h1>총쏘기 게임</h1>
+    <p>방향키/WASD 또는 왼쪽 스틱으로 이동</p>
+    <p>마우스 클릭·스페이스 또는 오른쪽 스틱으로 발사</p>
+    <p>적을 모두 처치하면 다음 스테이지로!</p>
+    <button id="startBtn">게임 시작</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const hpText = document.getElementById('hpText');
+const stageText = document.getElementById('stageText');
+const scoreText = document.getElementById('scoreText');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+
+let keys = {};
+let mouse = { x: W/2, y: H/2, down: false };
+
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (e.key === ' ') e.preventDefault(); });
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  mouse.x = (e.clientX - rect.left) * scaleX;
+  mouse.y = (e.clientY - rect.top) * scaleY;
+});
+canvas.addEventListener('mousedown', () => mouse.down = true);
+canvas.addEventListener('mouseup', () => mouse.down = false);
+
+// ---- 모바일 가상 조이스틱 ----
+let touchMove = { x: 0, y: 0 };
+let touchAim = { x: 0, y: 0, active: false };
+
+function setupStick(stickEl, knobEl, onMove, onEnd) {
+  let touchId = null;
+
+  function handleMove(touch) {
+    const r = stickEl.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    let dx = touch.clientX - cx;
+    let dy = touch.clientY - cy;
+    const max = r.width / 2;
+    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), max);
+    const angle = Math.atan2(dy, dx);
+    dx = Math.cos(angle) * dist;
+    dy = Math.sin(angle) * dist;
+    knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+    onMove(dx / max, dy / max);
+  }
+
+  stickEl.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    touchId = t.identifier;
+    handleMove(t);
+  }, { passive: false });
+
+  stickEl.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === touchId) { handleMove(t); e.preventDefault(); }
+    }
+  }, { passive: false });
+
+  function release(e) {
+    for (const t of e.changedTouches) {
+      if (t.identifier === touchId) {
+        touchId = null;
+        knobEl.style.transform = 'translate(0px, 0px)';
+        onEnd();
+      }
+    }
+  }
+  stickEl.addEventListener('touchend', release, { passive: false });
+  stickEl.addEventListener('touchcancel', release, { passive: false });
+}
+
+const moveStickEl = document.getElementById('moveStick');
+const aimStickEl = document.getElementById('aimStick');
+
+setupStick(
+  moveStickEl, moveStickEl.querySelector('.stick-knob'),
+  (nx, ny) => { touchMove.x = nx; touchMove.y = ny; },
+  () => { touchMove.x = 0; touchMove.y = 0; }
+);
+setupStick(
+  aimStickEl, aimStickEl.querySelector('.stick-knob'),
+  (nx, ny) => { touchAim.x = nx; touchAim.y = ny; touchAim.active = Math.hypot(nx, ny) > 0.15; },
+  () => { touchAim.active = false; }
+);
+
+function getAimAngle() {
+  if (touchAim.active) return Math.atan2(touchAim.y, touchAim.x);
+  return Math.atan2(mouse.y - player.y, mouse.x - player.x);
+}
+function isFiring() {
+  return mouse.down || keys[' '] || touchAim.active;
+}
+
+if (!('ontouchstart' in window)) {
+  document.getElementById('touchControls').style.display = 'none';
+}
+
+let player = { x: W/2, y: H - 80, r: 16, speed: 5, hp: 100, maxHp: 100 };
+let bullets = [], enemies = [], enemyBullets = [], particles = [];
+let score = 0, stage = 1, gameRunning = false, spawnTimer = 0, stageClearTimer = 0;
+let fireCooldown = 0;
+const TOTAL_STAGES = 5;
+
+function initGame() {
+  player = { x: W/2, y: H - 80, r: 16, speed: 5, hp: 100, maxHp: 100 };
+  bullets = [];
+  enemies = [];
+  enemyBullets = [];
+  particles = [];
+  score = 0;
+  stage = 1;
+  fireCooldown = 0;
+  startStage(stage);
+  gameRunning = true;
+}
+
+function startStage(n) {
+  enemies = [];
+  const count = 4 + n * 2;
+  for (let i = 0; i < count; i++) {
+    spawnEnemyGrid(i, count, n);
+  }
+  showStageBanner(n);
+}
+
+function spawnEnemyGrid(i, count, n) {
+  const cols = Math.min(8, count);
+  const col = i % cols;
+  const row = Math.floor(i / cols);
+  const speed = 1 + n * 0.3;
+  const hp = 1 + Math.floor(n / 2);
+  enemies.push({
+    x: 80 + col * ((W - 160) / (cols - 1 || 1)),
+    y: 60 + row * 60,
+    r: 18,
+    hp: hp,
+    maxHp: hp,
+    speed: speed,
+    dir: 1,
+    shootTimer: Math.random() * 100 + 50,
+    type: n >= 4 && Math.random() < 0.3 ? 'shooter' : 'basic'
+  });
+}
+
+function showStageBanner(n) {
+  const banner = document.createElement('div');
+  banner.id = 'stageBanner';
+  banner.textContent = 'STAGE ' + n;
+  document.getElementById('gameContainer').appendChild(banner);
+  setTimeout(() => banner.remove(), 1600);
+}
+
+function rectCollide(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  return dist < a.r + b.r;
+}
+
+function spawnParticles(x, y, color) {
+  for (let i = 0; i < 12; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6,
+      life: 30,
+      color
+    });
+  }
+}
+
+function update() {
+  if (!gameRunning) return;
+
+  // player movement
+  if (keys['arrowleft'] || keys['a']) player.x -= player.speed;
+  if (keys['arrowright'] || keys['d']) player.x += player.speed;
+  if (keys['arrowup'] || keys['w']) player.y -= player.speed;
+  if (keys['arrowdown'] || keys['s']) player.y += player.speed;
+  if (touchMove.x !== 0 || touchMove.y !== 0) {
+    player.x += touchMove.x * player.speed;
+    player.y += touchMove.y * player.speed;
+  }
+  player.x = Math.max(player.r, Math.min(W - player.r, player.x));
+  player.y = Math.max(player.r, Math.min(H - player.r, player.y));
+
+  // firing
+  fireCooldown--;
+  if (isFiring() && fireCooldown <= 0) {
+    const angle = getAimAngle();
+    bullets.push({
+      x: player.x, y: player.y,
+      vx: Math.cos(angle) * 9,
+      vy: Math.sin(angle) * 9,
+      r: 4
+    });
+    fireCooldown = 8;
+  }
+
+  // update bullets
+  bullets.forEach(b => { b.x += b.vx; b.y += b.vy; });
+  bullets = bullets.filter(b => b.x > -10 && b.x < W+10 && b.y > -10 && b.y < H+10);
+
+  // update enemies
+  enemies.forEach(en => {
+    en.x += en.dir * en.speed;
+    if (en.x < en.r || en.x > W - en.r) en.dir *= -1;
+
+    if (en.type === 'shooter') {
+      en.shootTimer--;
+      if (en.shootTimer <= 0) {
+        const angle = Math.atan2(player.y - en.y, player.x - en.x);
+        enemyBullets.push({
+          x: en.x, y: en.y,
+          vx: Math.cos(angle) * 4,
+          vy: Math.sin(angle) * 4,
+          r: 5
+        });
+        en.shootTimer = 90 + Math.random() * 60;
+      }
+    }
+  });
+
+  enemyBullets.forEach(b => { b.x += b.vx; b.y += b.vy; });
+  enemyBullets = enemyBullets.filter(b => b.x > -10 && b.x < W+10 && b.y > -10 && b.y < H+10);
+
+  // bullet vs enemy
+  bullets.forEach(b => {
+    enemies.forEach(en => {
+      if (!b.hit && rectCollide(b, en)) {
+        b.hit = true;
+        en.hp--;
+        spawnParticles(b.x, b.y, '#ffd45c');
+        if (en.hp <= 0) {
+          en.dead = true;
+          score += 100;
+          spawnParticles(en.x, en.y, '#ff5c5c');
+        }
+      }
+    });
+  });
+  bullets = bullets.filter(b => !b.hit);
+  enemies = enemies.filter(en => !en.dead);
+
+  // enemy bullet vs player
+  enemyBullets.forEach(b => {
+    if (!b.hit && rectCollide(b, player)) {
+      b.hit = true;
+      player.hp -= 8;
+      spawnParticles(player.x, player.y, '#5cd4ff');
+    }
+  });
+  enemyBullets = enemyBullets.filter(b => !b.hit);
+
+  // enemy body vs player
+  enemies.forEach(en => {
+    if (rectCollide(en, player)) {
+      player.hp -= 0.5;
+    }
+  });
+
+  // particles
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
+  particles = particles.filter(p => p.life > 0);
+
+  // stage clear check
+  if (enemies.length === 0 && stageClearTimer <= 0) {
+    stageClearTimer = 60;
+  }
+  if (stageClearTimer > 0) {
+    stageClearTimer--;
+    if (stageClearTimer === 0) {
+      stage++;
+      if (stage > TOTAL_STAGES) {
+        winGame();
+      } else {
+        startStage(stage);
+      }
+    }
+  }
+
+  if (player.hp <= 0) {
+    loseGame();
+  }
+
+  hpText.textContent = Math.max(0, Math.round(player.hp));
+  stageText.textContent = Math.min(stage, TOTAL_STAGES);
+  scoreText.textContent = score;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  if (!player) return;
+
+  // grid background feel
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // player
+  ctx.save();
+  const angle = getAimAngle();
+  ctx.translate(player.x, player.y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#4d8bff';
+  ctx.beginPath();
+  ctx.moveTo(20, 0);
+  ctx.lineTo(-14, -12);
+  ctx.lineTo(-14, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // bullets
+  ctx.fillStyle = '#ffd45c';
+  bullets.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // enemy bullets
+  ctx.fillStyle = '#ff5c5c';
+  enemyBullets.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // enemies
+  enemies.forEach(en => {
+    ctx.fillStyle = en.type === 'shooter' ? '#c65cff' : '#ff7a5c';
+    ctx.beginPath();
+    ctx.arc(en.x, en.y, en.r, 0, Math.PI*2);
+    ctx.fill();
+    // hp bar
+    ctx.fillStyle = '#000';
+    ctx.fillRect(en.x - en.r, en.y - en.r - 10, en.r*2, 4);
+    ctx.fillStyle = '#5cff8f';
+    ctx.fillRect(en.x - en.r, en.y - en.r - 10, en.r*2 * (en.hp/en.maxHp), 4);
+  });
+
+  // particles
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life / 30;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  // player hp bar
+  ctx.fillStyle = '#000';
+  ctx.fillRect(player.x - 20, player.y + 24, 40, 5);
+  ctx.fillStyle = '#5cff8f';
+  ctx.fillRect(player.x - 20, player.y + 24, 40 * Math.max(0,player.hp/player.maxHp), 5);
+}
+
+function hideOverlay() {
+  overlay.style.display = 'none';
+}
+function showOverlay() {
+  overlay.style.display = 'flex';
+}
+
+function winGame() {
+  gameRunning = false;
+  showOverlay();
+  overlay.innerHTML = `
+    <h1>🎉 축하합니다!</h1>
+    <p>모든 스테이지를 클리어했습니다!</p>
+    <p>최종 점수: ${score}</p>
+    <button id="restartBtn">다시 시작</button>
+  `;
+  document.getElementById('restartBtn').addEventListener('click', initGame2);
+}
+
+function loseGame() {
+  gameRunning = false;
+  showOverlay();
+  overlay.innerHTML = `
+    <h1>💀 게임 오버</h1>
+    <p>스테이지 ${stage} 에서 쓰러졌습니다</p>
+    <p>최종 점수: ${score}</p>
+    <button id="restartBtn">다시 시작</button>
+  `;
+  document.getElementById('restartBtn').addEventListener('click', initGame2);
+}
+
+function initGame2() {
+  hideOverlay();
+  initGame();
+}
+
+startBtn.addEventListener('click', () => {
+  try {
+    hideOverlay();
+    initGame();
+  } catch (err) {
+    console.error('게임 시작 중 오류:', err);
+  }
+});
+
+function loop() {
+  try {
+    update();
+    draw();
+  } catch (err) {
+    console.error('게임 루프 오류:', err);
+  }
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
