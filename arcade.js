@@ -17,7 +17,9 @@ const ARCADE_REQUIREMENTS = {
   'bottle-flip' : 20,
   'rhythm_game' : 30,
   'shooting_game' : 45,
-  'stars' : 60
+  'stars' : 60,
+  'jump' : 85,
+  'backrooms' : 100
 };
 
 let _arcadeScore = 0;
