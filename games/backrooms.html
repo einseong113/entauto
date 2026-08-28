@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>THE BACKROOMS — no-clip</title>
+<style>
+  :root{
+    --sick-yellow:#9a8b3f;
+    --wall-yellow:#7d6f31;
+    --carpet:#4a3f18;
+    --ceiling:#3a3115;
+    --ui-red:#b3231c;
+    --ui-dim:#c9c0a0;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;width:100%;height:100%;
+    background:#000;overflow:hidden;
+    font-family: 'Courier New', monospace;
+    cursor:none;
+  }
+  #wrap{position:relative;width:100vw;height:100vh;background:#000;touch-action:none;overscroll-behavior:none;}
+  canvas{position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:pixelated;touch-action:none;}
+  #fxCanvas{pointer-events:none;}
+
+  #joystickBase{
+    position:fixed;width:120px;height:120px;border-radius:50%;
+    border:2px solid rgba(255,255,255,0.28);background:rgba(255,255,255,0.04);
+    display:none;z-index:30;touch-action:none;
+  }
+  #joystickThumb{
+    position:absolute;top:50%;left:50%;width:52px;height:52px;margin:-26px;
+    border-radius:50%;background:rgba(255,255,255,0.22);
+    border:1px solid rgba(255,255,255,0.3);
+  }
+  #mobileStartBtn{
+    display:none;
+  }
+
+  #vignette{
+    position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 35%, rgba(0,0,0,0.85) 100%);
+    mix-blend-mode:multiply;
+  }
+  #noise{
+    position:absolute;inset:0;pointer-events:none;opacity:0.05;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    animation:grain 0.2s steps(2) infinite;
+  }
+  @keyframes grain{0%{transform:translate(0,0)}50%{transform:translate(-2%,1%)}100%{transform:translate(1%,-2%)}}
+
+  #hud{
+    position:absolute;left:0;right:0;bottom:0;padding:14px 18px;
+    display:flex;justify-content:space-between;align-items:flex-end;
+    color:var(--ui-dim);font-size:12px;letter-spacing:1px;
+    pointer-events:none;text-shadow:0 0 4px #000;
+  }
+  #sanityWrap{width:220px;}
+  #sanityLabel{margin-bottom:4px;opacity:0.8;}
+  #sanityBar{height:6px;width:100%;background:#1a1a1a;border:1px solid #000;}
+  #sanityFill{height:100%;width:100%;background:linear-gradient(90deg,#7a1c15,var(--ui-red));transition:width .3s;}
+  #battLabel{text-align:right;}
+
+  #crosshair{
+    position:absolute;top:50%;left:50%;width:4px;height:4px;
+    background:rgba(255,255,255,0.5);border-radius:50%;
+    transform:translate(-50%,-50%);pointer-events:none;
+  }
+
+  #startScreen,#deathScreen{
+    position:absolute;inset:0;z-index:20;
+    background:#000;color:var(--ui-dim);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:20px;
+  }
+  #startScreen h1{
+    color:var(--ui-red);font-size:2.4em;letter-spacing:6px;margin:0 0 6px;
+    text-shadow:0 0 12px rgba(179,35,28,0.6);
+    animation:flicker 4s infinite;
+  }
+  @keyframes flicker{
+    0%,19%,21%,23%,80%,100%{opacity:1;}
+    20%,22%,79%{opacity:0.3;}
+  }
+  #startScreen p{max-width:480px;line-height:1.6;font-size:13px;color:#8a8264;}
+  #startScreen .tag{font-size:11px;letter-spacing:3px;color:#5a5340;margin-bottom:30px;}
+  button{
+    margin-top:26px;padding:12px 34px;background:transparent;
+    border:1px solid var(--ui-red);color:var(--ui-red);
+    font-family:inherit;letter-spacing:3px;font-size:13px;cursor:pointer;
+    touch-action:manipulation;position:relative;z-index:25;
+  }
+  button:hover{background:var(--ui-red);color:#000;}
+  #deathScreen{display:none;background:radial-gradient(circle,#3a0000 0%,#000 70%);}
+  #deathScreen h1{color:#fff;font-size:3em;letter-spacing:10px;}
+  #hint{position:absolute;top:14px;left:18px;color:#6a634c;font-size:11px;letter-spacing:1px;pointer-events:none;text-shadow:0 0 4px #000;}
+  #foundExit{
+    position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
+    color:var(--ui-red);font-size:2em;letter-spacing:8px;display:none;
+    text-shadow:0 0 20px rgba(179,35,28,0.8);z-index:15;pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="mainCanvas"></canvas>
+  <div id="vignette"></div>
+  <div id="noise"></div>
+  <div id="crosshair"></div>
+  <div id="hint">WASD 이동 · 마우스 시점 · SHIFT 달리기(소음 증가) · CLICK 잠금</div>
+  <div id="joystickBase"><div id="joystickThumb"></div></div>
+  <div id="foundExit">EXIT FOUND</div>
+
+  <div id="hud">
+    <div id="sanityWrap">
+      <div id="sanityLabel">SANITY</div>
+      <div id="sanityBar"><div id="sanityFill"></div></div>
+    </div>
+    <div id="battLabel">BATTERY <span id="battPct">100</span>%</div>
+  </div>
+
+  <div id="startScreen">
+    <div class="tag">LEVEL 0 — MONOCHROME YELLOW</div>
+    <h1>THE BACKROOMS</h1>
+    <p>당신은 현실의 경계를 잘못 넘어 이곳에 갇혔습니다. 축축한 카펫 냄새와 윙윙거리는 형광등 소리만이 가득한 미로.
+    무언가가 당신을 쫓고 있습니다. 정신력이 0이 되거나 그것에게 붙잡히면 끝입니다.
+    출구를 찾아 이곳을 벗어나세요.</p>
+    <button id="startBtn">NO-CLIP 진입</button>
+  </div>
+
+  <div id="deathScreen">
+    <h1 id="deathText">CAUGHT</h1>
+    <p style="color:#7a6a6a;font-size:12px;letter-spacing:2px;margin-top:10px;">클릭하여 다시 시도</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  //////////////////// SETUP ////////////////////
+  const wrap = document.getElementById('wrap');
+  const canvas = document.getElementById('mainCanvas');
+  const ctx = canvas.getContext('2d');
+  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints>0;
+  if(isTouch){
+    document.getElementById('hint').textContent = '왼쪽 화면 드래그: 이동 · 오른쪽 화면 드래그: 시점 회전';
+    document.body.style.cursor='auto';
+  }
+  let W, H;
+  function resize(){
+    W = canvas.width = Math.floor(window.innerWidth * 0.75);
+    H = canvas.height = Math.floor(window.innerHeight * 0.75);
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  //////////////////// MAZE GENERATION ////////////////////
+  const MAP_W = 25, MAP_H = 25;
+  let map = [];
+
+  function genMaze(){
+    // start filled with walls, carve with randomized DFS on odd cells
+    map = new Array(MAP_H);
+    for(let y=0;y<MAP_H;y++){ map[y]=new Array(MAP_W).fill(1); }
+    function carve(cx,cy){
+      map[cy][cx]=0;
+      const dirs=[[0,-2],[0,2],[-2,0],[2,0]];
+      for(let i=dirs.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[dirs[i],dirs[j]]=[dirs[j],dirs[i]];}
+      for(const [dx,dy] of dirs){
+        const nx=cx+dx, ny=cy+dy;
+        if(nx>0&&nx<MAP_W-1&&ny>0&&ny<MAP_H-1&&map[ny][nx]===1){
+          map[cy+dy/2][cx+dx/2]=0;
+          carve(nx,ny);
+        }
+      }
+    }
+    carve(1,1);
+    // knock out extra walls randomly for room-like open pockets (backrooms feel)
+    for(let y=1;y<MAP_H-1;y++){
+      for(let x=1;x<MAP_W-1;x++){
+        if(map[y][x]===1 && Math.random()<0.06){
+          map[y][x]=0;
+        }
+      }
+    }
+    // border stays wall
+    for(let x=0;x<MAP_W;x++){map[0][x]=1;map[MAP_H-1][x]=1;}
+    for(let y=0;y<MAP_H;y++){map[y][0]=1;map[y][MAP_W-1]=1;}
+  }
+  genMaze();
+
+  function isWall(x,y){
+    const ix=Math.floor(x), iy=Math.floor(y);
+    if(ix<0||iy<0||ix>=MAP_W||iy>=MAP_H) return true;
+    return map[iy][ix]===1;
+  }
+  function findOpenCell(){
+    let x,y;
+    do{
+      x=(Math.random()*MAP_W)|0; y=(Math.random()*MAP_H)|0;
+    }while(map[y][x]===1);
+    return {x:x+0.5,y:y+0.5};
+  }
+
+  //////////////////// PLAYER ////////////////////
+  const start = findOpenCell();
+  const player = { x:start.x, y:start.y, dir:Math.random()*Math.PI*2, fov:Math.PI/3 };
+  let exitPos = null;
+  (function placeExit(){
+    let best=null,bestD=-1;
+    for(let i=0;i<40;i++){
+      const c=findOpenCell();
+      const d=(c.x-player.x)**2+(c.y-player.y)**2;
+      if(d>bestD){bestD=d;best=c;}
+    }
+    exitPos=best;
+  })();
+
+  //////////////////// ENTITY ////////////////////
+  let entity = null;
+  function spawnEntity(){
+    let c;
+    do{ c = findOpenCell(); }while(Math.hypot(c.x-player.x,c.y-player.y) < 8);
+    entity = {x:c.x,y:c.y,speed:0.018,active:true,seen:0};
+  }
+  spawnEntity();
+
+  //////////////////// STATE ////////////////////
+  let sanity = 100;
+  let battery = 100;
+  let noiseLevel = 0; // increases while sprinting, attracts entity
+  let running = false;
+  let gameOver = false;
+  let elapsed = 0;
+  let flickerT = 0;
+  let lightMul = 1;
+  let footstepT = 0;
+  const keys = {};
+
+  //////////////////// AUDIO ////////////////////
+  let actx = null, humGain=null, humOsc=null;
+  function initAudio(){
+    actx = new (window.AudioContext||window.webkitAudioContext)();
+    // buzzing fluorescent hum
+    humOsc = actx.createOscillator();
+    humOsc.type='sawtooth';
+    humOsc.frequency.value=120;
+    humGain = actx.createGain();
+    humGain.gain.value=0.02;
+    humOsc.connect(humGain).connect(actx.destination);
+    humOsc.start();
+
+    // low drone
+    const drone = actx.createOscillator();
+    drone.type='sine'; drone.frequency.value=48;
+    const droneGain = actx.createGain(); droneGain.gain.value=0.035;
+    drone.connect(droneGain).connect(actx.destination);
+    drone.start();
+  }
+  function beep(freq,dur,vol,type){
+    if(!actx) return;
+    const o=actx.createOscillator(); const g=actx.createGain();
+    o.type=type||'sine'; o.frequency.value=freq;
+    g.gain.value=vol;
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
+  }
+  function footstep(){
+    beep(80+Math.random()*30, 0.08, 0.05, 'square');
+  }
+  function stinger(){
+    beep(60,1.2,0.3,'sawtooth');
+    beep(600,0.15,0.15,'square');
+  }
+
+  //////////////////// INPUT ////////////////////
+  document.addEventListener('keydown', e=>{keys[e.code]=true;});
+  document.addEventListener('keyup', e=>{keys[e.code]=false;});
+
+  let pointerLocked=false;
+  canvas.addEventListener('click', ()=>{
+    if(running && !gameOver && !isTouch) canvas.requestPointerLock();
+  });
+  document.addEventListener('pointerlockchange', ()=>{
+    pointerLocked = document.pointerLockElement===canvas;
+  });
+  document.addEventListener('mousemove', e=>{
+    if(pointerLocked){
+      player.dir += e.movementX * 0.0025;
+    }
+  });
+
+  //////////////////// TOUCH CONTROLS ////////////////////
+  const joystickBase = document.getElementById('joystickBase');
+  const joystickThumb = document.getElementById('joystickThumb');
+  let joystickTouchId = null, lookTouchId = null;
+  let joystickStart = {x:0,y:0};
+  let lookLast = {x:0,y:0};
+  const joystickVec = {x:0,y:0}; // -1..1, x=strafe, y=forward(-1)/back(1)
+
+  function touchXY(t){ return {x:t.clientX, y:t.clientY}; }
+
+  function onTouchStart(e){
+    if(!running || gameOver) return;
+    for(const t of e.changedTouches){
+      const p = touchXY(t);
+      if(p.x < window.innerWidth/2){
+        if(joystickTouchId===null){
+          joystickTouchId = t.identifier;
+          joystickStart = p;
+          joystickBase.style.left = (p.x-60)+'px';
+          joystickBase.style.top = (p.y-60)+'px';
+          joystickBase.style.display = 'block';
+          joystickThumb.style.transform = 'translate(0px,0px)';
+        }
+      } else {
+        if(lookTouchId===null){
+          lookTouchId = t.identifier;
+          lookLast = p;
+        }
+      }
+    }
+    e.preventDefault();
+  }
+
+  function onTouchMove(e){
+    if(!running || gameOver) return;
+    for(const t of e.changedTouches){
+      const p = touchXY(t);
+      if(t.identifier===joystickTouchId){
+        let dx = p.x-joystickStart.x, dy = p.y-joystickStart.y;
+        const maxR = 50;
+        const dist = Math.hypot(dx,dy);
+        if(dist>maxR){ dx*=maxR/dist; dy*=maxR/dist; }
+        joystickThumb.style.transform = `translate(${dx}px,${dy}px)`;
+        joystickVec.x = dx/maxR;
+        joystickVec.y = dy/maxR;
+      } else if(t.identifier===lookTouchId){
+        const dx = p.x - lookLast.x;
+        player.dir += dx * 0.006;
+        lookLast = p;
+      }
+    }
+    e.preventDefault();
+  }
+
+  function onTouchEnd(e){
+    for(const t of e.changedTouches){
+      if(t.identifier===joystickTouchId){
+        joystickTouchId = null;
+        joystickVec.x = 0; joystickVec.y = 0;
+        joystickBase.style.display = 'none';
+      }
+      if(t.identifier===lookTouchId){
+        lookTouchId = null;
+      }
+    }
+    if(running && !gameOver) e.preventDefault();
+  }
+
+  wrap.addEventListener('touchstart', onTouchStart, {passive:false});
+  wrap.addEventListener('touchmove', onTouchMove, {passive:false});
+  wrap.addEventListener('touchend', onTouchEnd, {passive:false});
+  wrap.addEventListener('touchcancel', onTouchEnd, {passive:false});
+
+  //////////////////// RAYCASTING RENDER ////////////////////
+  function castRay(px,py,angle,maxDist){
+    const step=0.02;
+    let dist=0;
+    let hit=false, hx=0, hy=0, side=0;
+    let x=px,y=py;
+    const dx=Math.cos(angle)*step, dy=Math.sin(angle)*step;
+    while(dist<maxDist){
+      x+=dx; y+=dy; dist+=step;
+      if(isWall(x,y)){
+        hit=true; hx=x; hy=y;
+        // determine side for shading
+        const fracX = x - Math.floor(x);
+        const fracY = y - Math.floor(y);
+        side = (Math.min(fracX,1-fracX) < Math.min(fracY,1-fracY)) ? 1 : 0;
+        break;
+      }
+    }
+    return {dist:hit?dist:maxDist, hit, side};
+  }
+
+  function render(){
+    // sky/ceiling & floor
+    const grdCeil = ctx.createLinearGradient(0,0,0,H/2);
+    grdCeil.addColorStop(0,'#242010');
+    grdCeil.addColorStop(1,'#1a170c');
+    ctx.fillStyle=grdCeil;
+    ctx.fillRect(0,0,W,H/2);
+
+    const grdFloor = ctx.createLinearGradient(0,H/2,0,H);
+    grdFloor.addColorStop(0,'#2e2610');
+    grdFloor.addColorStop(1,'#181307');
+    ctx.fillStyle=grdFloor;
+    ctx.fillRect(0,H/2,W,H/2);
+
+    const numRays = Math.floor(W/2);
+    const rayW = W/numRays;
+    const maxDist = 16;
+
+    // flicker effect
+    flickerT += 1;
+    if(Math.random()<0.02){ lightMul = 0.4 + Math.random()*0.3; }
+    else if(Math.random()<0.05){ lightMul = 0.85+Math.random()*0.3; }
+
+    const battFactor = Math.max(0.15, battery/100);
+
+    const zbuffer = new Array(numRays);
+
+    for(let i=0;i<numRays;i++){
+      const rayAngle = player.dir - player.fov/2 + (i/numRays)*player.fov;
+      const r = castRay(player.x, player.y, rayAngle, maxDist);
+      const correctedDist = r.dist * Math.cos(rayAngle - player.dir);
+      zbuffer[i]=correctedDist;
+      const wallH = Math.min(H, (H/correctedDist)*0.9);
+      const yTop = H/2 - wallH/2;
+
+      let shade = 1 - (correctedDist/maxDist);
+      shade = Math.max(0, shade) * lightMul * battFactor;
+      if(r.side===1) shade *= 0.75;
+
+      // sick yellow-green backrooms wall color
+      const rr = 120*shade + 20;
+      const gg = 108*shade + 15;
+      const bb = 45*shade + 8;
+      ctx.fillStyle = `rgb(${rr|0},${gg|0},${bb|0})`;
+      ctx.fillRect(i*rayW, yTop, rayW+1, wallH);
+
+      // subtle stains
+      if(((Math.floor(r.dist*3)+i)%17)===0){
+        ctx.fillStyle=`rgba(10,8,4,${0.15*shade})`;
+        ctx.fillRect(i*rayW, yTop+wallH*0.3, rayW+1, wallH*0.4);
+      }
+    }
+
+    // draw entity as billboard sprite if visible
+    if(entity && entity.active){
+      const dx = entity.x-player.x, dy = entity.y-player.y;
+      const distToEnt = Math.hypot(dx,dy);
+      let angleTo = Math.atan2(dy,dx) - player.dir;
+      while(angleTo> Math.PI) angleTo-=Math.PI*2;
+      while(angleTo<-Math.PI) angleTo+=Math.PI*2;
+
+      if(Math.abs(angleTo) < player.fov/2 + 0.2 && distToEnt < maxDist){
+        // check line of sight roughly
+        const r = castRay(player.x, player.y, Math.atan2(dy,dx), distToEnt+0.3);
+        if(r.dist >= distToEnt-0.35){
+          entity.seen = Math.min(1, entity.seen+0.05);
+          const screenX = (0.5 + angleTo/player.fov) * W;
+          const size = Math.min(H*1.4, (H/distToEnt)*1.1);
+          const shade = Math.max(0.05,(1-distToEnt/maxDist))*lightMul;
+          ctx.save();
+          ctx.translate(screenX, H/2 + size*0.05);
+          // simple humanoid silhouette, tall & wrong-proportioned
+          ctx.fillStyle = `rgba(${8*shade|0},${6*shade|0},${6*shade|0},0.95)`;
+          ctx.beginPath();
+          ctx.ellipse(0,-size*0.32,size*0.09,size*0.13,0,0,Math.PI*2); // head
+          ctx.fill();
+          ctx.fillRect(-size*0.08,-size*0.2,size*0.16,size*0.42); // torso
+          // long arms
+          ctx.fillRect(-size*0.22,-size*0.18,size*0.06,size*0.5);
+          ctx.fillRect(size*0.16,-size*0.18,size*0.06,size*0.5);
+          // legs
+          ctx.fillRect(-size*0.07,size*0.22,size*0.05,size*0.3);
+          ctx.fillRect(size*0.02,size*0.22,size*0.05,size*0.3);
+          // eyes glow
+          if(distToEnt<7){
+            ctx.fillStyle=`rgba(179,20,20,${Math.min(0.9,0.9-distToEnt/8)})`;
+            ctx.beginPath();ctx.arc(-size*0.02,-size*0.33,size*0.012,0,Math.PI*2);ctx.fill();
+            ctx.beginPath();ctx.arc(size*0.02,-size*0.33,size*0.012,0,Math.PI*2);ctx.fill();
+          }
+          ctx.restore();
+        } else {
+          entity.seen = Math.max(0, entity.seen-0.03);
+        }
+      } else {
+        entity.seen = Math.max(0, entity.seen-0.02);
+      }
+    }
+
+    // vignette flicker overlay drawn via DOM already; add darkness pulse tied to lightMul
+    ctx.fillStyle = `rgba(0,0,0,${(1-lightMul)*0.35})`;
+    ctx.fillRect(0,0,W,H);
+
+    // exit glow if close & visible
+    if(exitPos){
+      const dx = exitPos.x-player.x, dy=exitPos.y-player.y;
+      const dist = Math.hypot(dx,dy);
+      if(dist < 14){
+        let angleTo = Math.atan2(dy,dx)-player.dir;
+        while(angleTo> Math.PI) angleTo-=Math.PI*2;
+        while(angleTo<-Math.PI) angleTo+=Math.PI*2;
+        if(Math.abs(angleTo) < player.fov/2+0.3){
+          const r = castRay(player.x,player.y,Math.atan2(dy,dx),dist+0.3);
+          if(r.dist >= dist-0.4){
+            const screenX=(0.5+angleTo/player.fov)*W;
+            const size=Math.min(H,(H/dist)*0.9);
+            const grd=ctx.createRadialGradient(screenX,H/2,0,screenX,H/2,size*0.6);
+            grd.addColorStop(0,`rgba(255,240,180,${Math.min(0.5,0.5-dist/28)})`);
+            grd.addColorStop(1,'rgba(255,240,180,0)');
+            ctx.fillStyle=grd;
+            ctx.fillRect(screenX-size*0.6,H/2-size*0.6,size*1.2,size*1.2);
+          }
+        }
+      }
+    }
+
+    return zbuffer;
+  }
+
+  //////////////////// GAME LOOP ////////////////////
+  let lastTime = performance.now();
+  let zbufferGlobal=[];
+
+  function movePlayer(dt){
+    const joyMag = Math.hypot(joystickVec.x, joystickVec.y);
+    const sprinting = keys['ShiftLeft']||keys['ShiftRight']||joyMag>0.85;
+    const baseSpeed = sprinting? 0.0032 : 0.0018;
+    const speed = baseSpeed*dt;
+    let mx=0,my=0;
+    const fx=Math.cos(player.dir), fy=Math.sin(player.dir);
+    const sx=Math.cos(player.dir+Math.PI/2), sy=Math.sin(player.dir+Math.PI/2);
+    if(keys['KeyW']||keys['ArrowUp']){mx+=fx;my+=fy;}
+    if(keys['KeyS']||keys['ArrowDown']){mx-=fx;my-=fy;}
+    if(keys['KeyA']){mx-=sx;my-=sy;}
+    if(keys['KeyD']){mx+=sx;my+=sy;}
+    // touch joystick: y<0 = forward, x = strafe
+    if(joyMag>0.1){
+      mx += fx*(-joystickVec.y) + sx*(joystickVec.x);
+      my += fy*(-joystickVec.y) + sy*(joystickVec.x);
+    }
+    const len=Math.hypot(mx,my);
+    let moving=false;
+    if(len>0){
+      mx/=len; my/=len;
+      const nx=player.x+mx*speed, ny=player.y+my*speed;
+      if(!isWall(nx,player.y)) player.x=nx;
+      if(!isWall(player.x,ny)) player.y=ny;
+      moving=true;
+      noiseLevel = Math.min(1, noiseLevel + (sprinting?0.02:0.004));
+      footstepT += dt;
+      const interval = sprinting? 220:340;
+      if(footstepT>interval){ footstepT=0; footstep(); }
+    }
+    if(!moving) noiseLevel = Math.max(0, noiseLevel-0.01);
+    if(keys['ArrowLeft']) player.dir -= 0.0022*dt;
+    if(keys['ArrowRight']) player.dir += 0.0022*dt;
+  }
+
+  function updateEntity(dt){
+    if(!entity || !entity.active) return;
+    const dx=player.x-entity.x, dy=player.y-entity.y;
+    const dist=Math.hypot(dx,dy);
+    // entity is drawn toward noise + slowly hunts always, faster if sanity low
+    const aggression = 1 + (1-sanity/100)*1.5 + noiseLevel*1.2;
+    const spd = entity.speed*dt*aggression;
+    if(dist>0.01){
+      const nx=entity.x+(dx/dist)*spd;
+      const ny=entity.y+(dy/dist)*spd;
+      if(!isWall(nx,entity.y)) entity.x=nx;
+      if(!isWall(entity.x,ny)) entity.y=ny;
+    }
+    if(dist < 0.5){
+      die("CAUGHT");
+    }
+  }
+
+  function updateSanity(dt){
+    // sanity drains slowly, faster if entity seen recently, restores slightly if calm & entity far
+    const distEnt = entity? Math.hypot(entity.x-player.x, entity.y-player.y):999;
+    let drain = 0.0015*dt;
+    if(entity && entity.seen>0.3) drain += 0.006*dt*entity.seen;
+    if(distEnt<3) drain += 0.004*dt;
+    sanity = Math.max(0, sanity-drain);
+    if(distEnt>10 && Math.random()<0.002) sanity = Math.min(100, sanity+0.5);
+
+    battery = Math.max(0, battery - 0.0009*dt);
+    if(battery<=0 && Math.random()<0.01) beep(200,0.3,0.1,'square');
+
+    document.getElementById('sanityFill').style.width = sanity+'%';
+    document.getElementById('battPct').textContent = Math.floor(battery);
+
+    if(sanity<=0) die("LOST TO MADNESS");
+  }
+
+  function checkExit(){
+    if(!exitPos) return;
+    const d=Math.hypot(exitPos.x-player.x, exitPos.y-player.y);
+    if(d<0.6){
+      win();
+    }
+  }
+
+  function die(text){
+    if(gameOver) return;
+    gameOver=true;
+    running=false;
+    stinger();
+    document.exitPointerLock && document.exitPointerLock();
+    document.getElementById('deathText').textContent = text;
+    document.getElementById('deathScreen').style.display='flex';
+  }
+
+  function win(){
+    if(gameOver) return;
+    gameOver=true;
+    running=false;
+    document.exitPointerLock && document.exitPointerLock();
+    document.getElementById('deathText').textContent = "YOU ESCAPED";
+    document.getElementById('deathScreen').style.display='flex';
+    document.getElementById('deathScreen').style.background='radial-gradient(circle,#101a10 0%,#000 70%)';
+    document.getElementById('deathText').style.color = '#9fd39a';
+  }
+
+  function loop(now){
+    const dt = Math.min(50, now-lastTime);
+    lastTime = now;
+    if(running && !gameOver){
+      elapsed += dt;
+      movePlayer(dt);
+      updateEntity(dt);
+      updateSanity(dt);
+      checkExit();
+      zbufferGlobal = render();
+
+      // occasional whisper / random scare sound
+      if(Math.random()<0.0015) beep(300+Math.random()*400,0.4,0.06,'sine');
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  //////////////////// START / RESTART ////////////////////
+  document.getElementById('startBtn').addEventListener('click', ()=>{
+    if(!actx) initAudio();
+    document.getElementById('startScreen').style.display='none';
+    running = true;
+    if(!isTouch) canvas.requestPointerLock();
+  });
+
+  document.getElementById('deathScreen').addEventListener('click', ()=>{
+    // reset everything
+    genMaze();
+    const s = findOpenCell();
+    player.x=s.x; player.y=s.y; player.dir=Math.random()*Math.PI*2;
+    let best=null,bestD=-1;
+    for(let i=0;i<40;i++){
+      const c=findOpenCell();
+      const d=(c.x-player.x)**2+(c.y-player.y)**2;
+      if(d>bestD){bestD=d;best=c;}
+    }
+    exitPos=best;
+    spawnEntity();
+    sanity=100; battery=100; noiseLevel=0; elapsed=0;
+    gameOver=false; running=true;
+    document.getElementById('deathScreen').style.display='none';
+    document.getElementById('deathScreen').style.background='radial-gradient(circle,#3a0000 0%,#000 70%)';
+    document.getElementById('deathText').style.color='#fff';
+    if(!isTouch) canvas.requestPointerLock();
+  });
+
+})();
+</script>
+</body>
+</html>
