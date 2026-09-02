@@ -15,11 +15,11 @@ const ARCADE_REQUIREMENTS = {
   '2048':     5,
   'neon-stack': 15,
   'bottle-flip' : 20,
-  'rhythm_game' : 30,
-  'shooting_game' : 45,
-  'stars' : 60,
-  'jump' : 85,
-  'backrooms' : 100
+  'rhythm_game' : 25,
+  'shooting_game' : 30,
+  'stars' : 35,
+  'jump' : 40,
+  'backrooms' : 45
 };
 
 let _arcadeScore = 0;
