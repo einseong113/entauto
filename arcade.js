@@ -19,7 +19,8 @@ const ARCADE_REQUIREMENTS = {
   'shooting_game' : 30,
   'stars' : 35,
   'jump' : 40,
-  'backrooms' : 45
+  'backrooms' : 45,
+  'fps' : 50
 };
 
 let _arcadeScore = 0;
