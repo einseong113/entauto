@@ -28,7 +28,7 @@ let _arcadeScore = 0;
 
 function arcadeInit(){
   const params = new URLSearchParams(window.location.search);
-  const scoreStr = params.get('score');
+  const scoreStr = params.get('2026runinfoscore');
 
   if(scoreStr !== null){
     const num = Math.floor(Number(scoreStr));
