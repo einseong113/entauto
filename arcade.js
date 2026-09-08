@@ -21,7 +21,9 @@ const ARCADE_REQUIREMENTS = {
   'jump' : 40,
   'backrooms' : 45,
   'fps' : 50,
-  'pacman' : 55
+  'pacman' : 55,
+  'geo' : 60,
+  'subway' : 65
 };
 
 let _arcadeScore = 0;
