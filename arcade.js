@@ -23,7 +23,7 @@ const ARCADE_REQUIREMENTS = {
   'fps' : 50,
   'pacman' : 55,
   'geo' : 60,
-  'subway' : 65
+  'subway' : 25
 };
 
 let _arcadeScore = 0;
