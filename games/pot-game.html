@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>항아리 게임</title><style>
+:root{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#111;touch-action:none;font-family:-apple-system,"Noto Sans KR",sans-serif;-webkit-user-select:none;user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%}
+#hud{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 14px 0;color:#fff;display:flex;justify-content:space-between;font-weight:700;text-shadow:0 1px 3px #000;pointer-events:none}
+#msg{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;background:rgba(0,0,0,.6);padding:24px;font-size:18px;line-height:1.6}
+#msg.h{display:none}
+#msg button{margin-top:16px;font-size:18px;padding:12px 28px;border:0;border-radius:24px;background:#e0a040;color:#222;font-weight:700}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><span id="ht">높이 0.0m</span><span id="tm">0:00</span></div>
+<div id="msg"><div id="mt">🏺 항아리 게임<br>손가락을 화면에 대고 움직이면<br>망치가 그 방향을 가리켜요.<br>바위를 짚고 밀어 올라가세요!<br>정상은 32m</div><button id="bt">시작</button></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),msg=document.getElementById('msg');
+let W,H,S,dpr;
+function rs(){dpr=devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;S=W/640}
+addEventListener('resize',rs);rs();
+const sh=[{t:'r',x:-1000,y:40,w:2000,h:400,g:1},{t:'r',x:-360,y:-4000,w:40,h:4100},{t:'r',x:320,y:-4000,w:40,h:4100}];
+for(let i=0;i<30;i++){const y=-50-i*105,x=Math.sin(i*1.7)*100;
+ if(i%3==2)sh.push({t:'c',x,y,r:52});else sh.push({t:'r',x:x-70,y,w:140,h:30});}
+const GOAL=-3200,L=120,BR=26;
+let b,aim,camY,started,won,t0,last,acc=0,pot={x:0,y:0};
+function reset(){b={x:0,y:0,vx:0,vy:0,a:-1.2};aim=-1.2;camY=0;started=false;won=false;t0=0}
+reset();
+function res(p,r){let hit=null;
+ for(const s of sh){let nx,ny,d,pen;
+  if(s.t=='c'){nx=p.x-s.x;ny=p.y-s.y;d=Math.hypot(nx,ny);pen=s.r+r-d;if(pen<=0)continue;
+   if(d<1e-6){nx=0;ny=-1}else{nx/=d;ny/=d}}
+  else{const cx=Math.max(s.x,Math.min(p.x,s.x+s.w)),cy=Math.max(s.y,Math.min(p.y,s.y+s.h));
+   nx=p.x-cx;ny=p.y-cy;d=Math.hypot(nx,ny);if(d>=r)continue;
+   if(d>1e-6){nx/=d;ny/=d;pen=r-d}else{
+    const l=p.x-s.x,rr=s.x+s.w-p.x,t=p.y-s.y,bt=s.y+s.h-p.y,m=Math.min(l,rr,t,bt);
+    if(m==t){nx=0;ny=-1;pen=t+r}else if(m==bt){nx=0;ny=1;pen=bt+r}else if(m==l){nx=-1;ny=0;pen=l+r}else{nx=1;ny=0;pen=rr+r}}}
+  p.x+=nx*pen;p.y+=ny*pen;hit={nx,ny}}
+ return hit}
+function step(){
+ b.vy+=0.45;
+ for(let i=0;i<3;i++){
+  let da=aim-b.a;da=Math.atan2(Math.sin(da),Math.cos(da));
+  b.a+=Math.max(-.06,Math.min(.06,da));
+  const tp={x:b.x+Math.cos(b.a)*L,y:b.y+Math.sin(b.a)*L},ox=tp.x,oy=tp.y;
+  if(res(tp,5)){const dx=tp.x-ox,dy=tp.y-oy;b.x+=dx;b.y+=dy;b.vx+=dx*.35;b.vy+=dy*.35}}
+ const sp=Math.hypot(b.vx,b.vy);if(sp>22){b.vx*=22/sp;b.vy*=22/sp}
+ b.vx*=.995;b.x+=b.vx;b.y+=b.vy;
+ const bp={x:b.x,y:b.y},h=res(bp,BR);
+ if(h){b.x=bp.x;b.y=bp.y;const vn=b.vx*h.nx+b.vy*h.ny;
+  if(vn<0){b.vx-=vn*h.nx;b.vy-=vn*h.ny}b.vx*=.9}
+ if(!won&&b.y<GOAL){won=true;const s=((performance.now()-t0)/1000)|0;
+  document.getElementById('mt').innerHTML='🎉 정상 도착!<br>기록 '+fmt(s);document.getElementById('bt').textContent='다시 하기';msg.classList.remove('h')}}
+function fmt(s){return (s/60|0)+':'+String(s%60).padStart(2,'0')}
+function draw(){
+ camY+=(b.y-camY)*.12;
+ const k=Math.min(1,Math.max(0,-b.y/3200)),c=(a,z)=>Math.round(a+(z-a)*k);
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ ctx.fillStyle=`rgb(${c(130,15)},${c(195,15)},${c(240,50)})`;ctx.fillRect(0,0,W,H);
+ ctx.save();ctx.translate(W/2,H*.6);ctx.scale(S,S);ctx.translate(0,-camY);
+ pot.x=W/2+b.x*S;pot.y=H*.6+(b.y-camY)*S;
+ for(const s of sh){
+  if(s.t=='c'){ctx.fillStyle='#7a6d5e';ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill()}
+  else{ctx.fillStyle=s.g?'#4c7a3a':'#6b5b4b';ctx.fillRect(s.x,s.y,s.w,s.h);
+   if(!s.g&&s.h<100){ctx.fillStyle='#8a7a5a';ctx.fillRect(s.x,s.y,s.w,6)}}}
+ ctx.fillStyle='#ffd34d';ctx.fillRect(-320,GOAL-6,640,4);
+ const tx=b.x+Math.cos(b.a)*L,ty=b.y+Math.sin(b.a)*L;
+ ctx.fillStyle='#e8b98a';ctx.fillRect(b.x-12,b.y-34,24,26);ctx.beginPath();ctx.arc(b.x,b.y-42,10,0,7);ctx.fill();
+ ctx.fillStyle='#b5651d';ctx.beginPath();ctx.ellipse(b.x,b.y+4,30,28,0,0,7);ctx.fill();
+ ctx.fillStyle='#8a4a12';ctx.beginPath();ctx.ellipse(b.x,b.y-18,27,8,0,0,7);ctx.fill();
+ ctx.strokeStyle='#5a3a1a';ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(b.x,b.y-10);ctx.lineTo(tx,ty);ctx.stroke();
+ ctx.save();ctx.translate(tx,ty);ctx.rotate(b.a);ctx.fillStyle='#999';ctx.fillRect(-6,-13,12,26);ctx.restore();
+ ctx.restore();
+ document.getElementById('ht').textContent='높이 '+Math.max(0,-(b.y)/100).toFixed(1)+'m';
+ document.getElementById('tm').textContent=started&&!won?fmt(((performance.now()-t0)/1000)|0):document.getElementById('tm').textContent}
+function loop(n){if(!last)last=n;acc+=Math.min(50,n-last);last=n;
+ while(acc>=1000/60){if(started&&!won)step();acc-=1000/60}
+ draw();requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+function setAim(e){aim=Math.atan2(e.clientY-pot.y,e.clientX-pot.x)}
+cv.addEventListener('pointerdown',e=>{setAim(e);cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(e.buttons||e.pointerType=='touch')setAim(e)});
+document.getElementById('bt').onclick=()=>{if(won||b.y<0){reset();document.getElementById('tm').textContent='0:00'}
+ started=true;t0=performance.now();msg.classList.add('h')};
+</script></body></html>
