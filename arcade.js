@@ -24,7 +24,11 @@ const ARCADE_REQUIREMENTS = {
   'pacman' : 55,
   'geo' : 60,
   'subway' : 25,
-  'pot-game' : 25
+  'pot-game' : 25,
+  'basketball' : 45,
+  'badminton' : 50, 
+  'savana' : 55,
+  'rocks' : 40
 };
 
 let _arcadeScore = 0;
