@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2인 바둑</title>
+<style>
+:root{--bg:#f4efe6;--fg:#222;--card:#fff;--bd:#d8cfbf;--ac:#8a5a2b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1b19;--fg:#eee;--card:#2a2825;--bd:#444;--ac:#c8955a}}
+:root[data-theme="dark"]{--bg:#1c1b19;--fg:#eee;--card:#2a2825;--bd:#444;--ac:#c8955a}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,"Noto Sans KR",sans-serif;display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px;box-sizing:border-box;min-height:100%;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+#st{width:100%;max-width:640px;display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;font-size:15px;box-sizing:border-box;gap:8px}
+#msg{font-weight:700}
+#cap{font-size:13px;opacity:.8;text-align:right}
+canvas{border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.3);touch-action:none;max-width:100%}
+#bar{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+button,select{font:inherit;font-size:15px;padding:9px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
+button{background:var(--ac);color:#fff;border-color:var(--ac)}
+button.s{background:var(--card);color:var(--fg);border-color:var(--bd)}
+button:active{opacity:.7}
+#hint{font-size:12px;opacity:.7;text-align:center;max-width:520px}
+</style></head><body>
+<div id="st"><div id="msg"></div><div id="cap"></div></div>
+<canvas id="c"></canvas>
+<div id="bar">
+<button id="pass">패스</button>
+<button id="undo" class="s">무르기</button>
+<button id="res" class="s" style="display:none">계속 두기</button>
+<select id="sz"><option value="9">9줄</option><option value="13">13줄</option><option value="19" selected>19줄</option></select>
+<button id="new" class="s">새 게임</button>
+</div>
+<div id="hint">흑이 먼저 둡니다. 연속 두 번 패스하면 계가 모드로 넘어가며, 죽은 돌을 눌러 표시하세요. 덤 6.5집.</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),$=id=>document.getElementById(id);
+let N=19,b,turn,caps,ko,passes,hist,last,phase,dead,W,M,hv=-1,toast='',tt;
+const KOMI=6.5;
+function init(n){N=n||N;b=Array(N*N).fill(0);turn=1;caps=[0,0,0];ko=-1;passes=0;hist=[];last=-1;phase='play';dead=new Set();hv=-1;resize()}
+const nbs=i=>{const x=i%N,y=i/N|0,r=[];if(x>0)r.push(i-1);if(x<N-1)r.push(i+1);if(y>0)r.push(i-N);if(y<N-1)r.push(i+N);return r};
+function grp(i,bd){const c=bd[i],seen=new Set([i]),st=[i],libs=new Set();while(st.length){const k=st.pop();for(const n of nbs(k)){if(bd[n]===0)libs.add(n);else if(bd[n]===c&&!seen.has(n)){seen.add(n);st.push(n)}}}return{s:[...seen],l:libs}}
+function snap(){hist.push({b:b.slice(),turn,caps:caps.slice(),ko,passes,last})}
+function play(i){
+ if(b[i]||i===ko)return false;
+ const nb2=b.slice();nb2[i]=turn;const o=3-turn,cap=[],done=new Set();
+ for(const n of nbs(i)){if(nb2[n]===o&&!done.has(n)){const g=grp(n,nb2);g.s.forEach(s=>done.add(s));if(!g.l.size)cap.push(...g.s)}}
+ cap.forEach(s=>nb2[s]=0);
+ const me=grp(i,nb2);if(!me.l.size)return false;
+ snap();
+ ko=(cap.length===1&&me.s.length===1&&me.l.size===1)?cap[0]:-1;
+ b=nb2;caps[turn]+=cap.length;passes=0;last=i;turn=o;return true}
+function doPass(){snap();passes++;ko=-1;last=-1;turn=3-turn;if(passes>=2){phase='score';dead=new Set()}}
+function score(){
+ const bd=b.slice();let dB=0,dW=0;
+ dead.forEach(i=>{if(bd[i]===1)dB++;else if(bd[i]===2)dW++;bd[i]=0});
+ const t=[0,0,0],own=Array(N*N).fill(0),seen=new Set();
+ for(let i=0;i<N*N;i++){if(bd[i]||seen.has(i))continue;
+  const reg=[i],st=[i],bo=new Set();seen.add(i);
+  while(st.length){const k=st.pop();for(const n of nbs(k)){if(bd[n])bo.add(bd[n]);else if(!seen.has(n)){seen.add(n);reg.push(n);st.push(n)}}}
+  if(bo.size===1){const o=[...bo][0];t[o]+=reg.length;reg.forEach(r=>own[r]=o)}}
+ return{own,B:t[1]+caps[1]+dW,W:t[2]+caps[2]+dB+KOMI}}
+function resize(){
+ const w=Math.max(260,Math.min(innerWidth-16,innerHeight-200,640)),d=devicePixelRatio||1;
+ W=w;M=w/(N+1);cv.style.width=cv.style.height=w+'px';cv.width=cv.height=w*d;ctx.setTransform(d,0,0,d,0,0);draw()}
+const P=x=>M*(x+1);
+function stone(x,y,c,a){
+ const px=P(x),py=P(y),r=M*.47;ctx.globalAlpha=a;
+ const g=ctx.createRadialGradient(px-r*.35,py-r*.35,r*.1,px,py,r);
+ if(c===1){g.addColorStop(0,'#666');g.addColorStop(1,'#000')}else{g.addColorStop(0,'#fff');g.addColorStop(1,'#cfcfcf')}
+ ctx.fillStyle=g;ctx.shadowColor='rgba(0,0,0,.4)';ctx.shadowBlur=3;ctx.shadowOffsetY=1;
+ ctx.beginPath();ctx.arc(px,py,r,0,7);ctx.fill();ctx.shadowColor='transparent';ctx.globalAlpha=1}
+function draw(){
+ ctx.fillStyle='#dcb35c';ctx.fillRect(0,0,W,W);
+ ctx.strokeStyle='#5a4320';ctx.lineWidth=1;ctx.beginPath();
+ for(let i=0;i<N;i++){ctx.moveTo(P(i),P(0));ctx.lineTo(P(i),P(N-1));ctx.moveTo(P(0),P(i));ctx.lineTo(P(N-1),P(i))}
+ ctx.stroke();
+ const sp=N===19?[3,9,15]:N===13?[3,6,9]:[2,4,6];ctx.fillStyle='#5a4320';
+ for(const x of sp)for(const y of sp){ctx.beginPath();ctx.arc(P(x),P(y),M*.1,0,7);ctx.fill()}
+ const sc=phase==='score'?score():null;
+ for(let i=0;i<N*N;i++){const x=i%N,y=i/N|0;
+  if(b[i])stone(x,y,b[i],dead.has(i)?.35:1);
+  if(sc&&sc.own[i]){ctx.fillStyle=sc.own[i]===1?'#000':'#fff';ctx.strokeStyle='#000';ctx.lineWidth=1;const s=M*.28;ctx.fillRect(P(x)-s/2,P(y)-s/2,s,s);ctx.strokeRect(P(x)-s/2,P(y)-s/2,s,s)}}
+ if(last>=0){ctx.strokeStyle=b[last]===1?'#fff':'#000';ctx.lineWidth=2;ctx.beginPath();ctx.arc(P(last%N),P((last/N|0)),M*.2,0,7);ctx.stroke()}
+ if(phase==='play'&&hv>=0&&!b[hv])stone(hv%N,hv/N|0,turn,.45);
+ const nm=c=>c===1?'흑':'백';
+ if(toast)$('msg').textContent=toast;
+ else if(phase==='play')$('msg').textContent=(turn===1?'● ':'○ ')+nm(turn)+' 차례'+(passes?' (상대가 패스함)':'');
+ else{const r=score(),d=r.B-r.W;$('msg').textContent=d>0?`흑 ${d}집 승`:`백 ${-d}집 승`}
+ $('cap').innerHTML=phase==='score'?`흑 ${sc.B} / 백 ${sc.W}<br>죽은 돌을 눌러 표시`:`따낸 돌 흑 ${caps[1]} / 백 ${caps[2]}`;
+ $('res').style.display=phase==='score'?'':'none';
+ $('pass').style.display=phase==='score'?'none':'';
+}
+function say(t){toast=t;draw();clearTimeout(tt);tt=setTimeout(()=>{toast='';draw()},1200)}
+function idx(e){const r=cv.getBoundingClientRect(),x=Math.round((e.clientX-r.left)/r.width*W/M)-1,y=Math.round((e.clientY-r.top)/r.height*W/M)-1;
+ return(x<0||y<0||x>=N||y>=N)?-1:y*N+x}
+cv.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'){hv=idx(e);draw()}});
+cv.addEventListener('pointerleave',()=>{hv=-1;draw()});
+cv.addEventListener('pointerup',e=>{
+ const i=idx(e);if(i<0)return;
+ if(phase==='score'){if(b[i]){const g=grp(i,b).s,rm=dead.has(i);g.forEach(s=>rm?dead.delete(s):dead.add(s))}draw();return}
+ if(!play(i))say(i===ko?'패 규칙: 바로 되따낼 수 없어요':b[i]?'이미 돌이 있어요':'착수 금지 자리예요');else draw()});
+$('pass').onclick=()=>{doPass();draw()};
+$('undo').onclick=()=>{if(!hist.length)return;const h=hist.pop();({b,turn,caps,ko,passes,last}=h);phase='play';dead=new Set();draw()};
+$('res').onclick=()=>{phase='play';passes=0;dead=new Set();draw()};
+$('new').onclick=()=>{if(confirm('새 게임을 시작할까요?'))init(+$('sz').value)};
+$('sz').onchange=()=>init(+$('sz').value);
+addEventListener('resize',resize);
+init(19);
+</script></body></html>
