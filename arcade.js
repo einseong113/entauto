@@ -28,7 +28,10 @@ const ARCADE_REQUIREMENTS = {
   'basketball' : 45,
   'badminton' : 50, 
   'savana' : 55,
-  'rocks' : 40
+  'rocks' : 40,
+  'ban' : 45,
+  'mini-golf-3d' : 60,
+  'sniper_hunt' : 75
 };
 
 let _arcadeScore = 0;
